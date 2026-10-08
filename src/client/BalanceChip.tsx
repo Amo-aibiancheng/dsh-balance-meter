@@ -32,27 +32,39 @@ const CSS_ID = 'dsh-balance-meter/client.css'
 /**
  * Panel placement: anchored under the pill and clamped into the viewport.
  *
+ * The panel opens ABOVE the pill, because the dock row sits at the very bottom
+ * of the window and below is nothing but the frame edge.
+ *
  * @param anchor - the pill element.
  * @param panel - the panel element.
  * @returns the style to apply.
  */
 function placePanel(anchor: HTMLElement, panel: HTMLElement): CSSProperties {
   const rect = anchor.getBoundingClientRect()
-  const width = panel.offsetWidth || 280
-  const height = panel.offsetHeight || 220
+  const width = panel.offsetWidth || 300
+  const height = panel.offsetHeight || 240
+  const margin = 12
   return {
-    left: Math.min(Math.max(8, rect.right - width), Math.max(8, window.innerWidth - width - 8)),
-    top: Math.min(rect.bottom + 8, Math.max(8, window.innerHeight - height - 8)),
+    left: Math.min(Math.max(margin, rect.right - width), Math.max(margin, window.innerWidth - width - margin)),
+    top: Math.max(margin, rect.top - height - 8),
   }
 }
 
-/** One key/value row of the detail panel. */
+/**
+ * One definition row of the detail panel.
+ *
+ * `dt`/`dd` in a CSS grid, which is the official stat dialog's structure — the
+ * grid columns are what align every value into one column.
+ *
+ * @param props - the row content.
+ * @returns the rendered row pair.
+ */
 function Row({ label, value }: { label: string; value: string }): JSX.Element {
   return (
-    <div className="dshbm_row">
-      <span className="dshbm_rowkey">{label}</span>
-      <span className="dshbm_val">{value}</span>
-    </div>
+    <>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </>
   )
 }
 
@@ -223,32 +235,39 @@ export function BalanceChip(props: BalanceChipProps): JSX.Element {
           aria-label="余额与本次消费"
           style={panelStyle === null ? { visibility: 'hidden' } : panelStyle}
         >
-          <div className="dshbm_title">账户与本次会话</div>
-          {/* 充值余额 headlines; 赠金 gets its own row only when it exists — the
-              same split the shipped account card uses, never summed. */}
-          <Row label="充值余额" value={paidText} />
-          {bonusText !== null ? <Row label="赠金余额" value={bonusText} /> : null}
-          {balance?.updatedAt !== null && balance?.updatedAt !== undefined ? <Row label="余额采样于" value={formatClock(balance.updatedAt)} /> : null}
-          {balance?.ageMs !== null && balance?.ageMs !== undefined ? <Row label="数据年龄" value={formatSpan(balance.ageMs)} /> : null}
-          <div className="dshbm_rule" />
-          <Row label="本次消费" value={session === null ? '--' : formatMoney(session.spend, currency, 4)} />
-          {session !== null && session.topUp > 0 ? <Row label="期间充值" value={formatMoney(session.topUp, currency)} /> : null}
-          {session?.baseline != null ? <Row label="基准时点" value={formatClock(session.baseline.time)} /> : null}
-          {session !== null ? <Row label="观测窗口" value={formatSpan(session.windowMs)} /> : null}
-          {session !== null ? <Row label="累计结算" value={`${session.chargedCount} 次`} /> : null}
-          {crossCheck !== null ? (
-            <>
-              <div className="dshbm_rule" />
-              <Row label="系数校验（估算）" value={formatMoney(crossCheck.cost, crossCheck.currency, 4)} />
-              <Row label="Token 合计" value={formatCount(crossCheck.tokens.total)} />
-            </>
-          ) : null}
-          {crossCheck === null && crossCheckTokens !== null ? (
-            <>
-              <div className="dshbm_rule" />
-              <Row label="Token 合计" value={formatCount(crossCheckTokens)} />
-            </>
-          ) : null}
+          <div className="dshbm_title">
+            <span className="dshbm_titleLabel">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M8 4.4v7.2M9.9 6.2c0-.9-.85-1.5-1.9-1.5s-1.9.6-1.9 1.5.85 1.35 1.9 1.55 1.9.65 1.9 1.55-.85 1.5-1.9 1.5-1.9-.6-1.9-1.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+              </svg>
+              余额与本次消费
+            </span>
+            <span className="dshbm_titleValue">{spendText}</span>
+          </div>
+          <div className="dshbm_titleRule" aria-hidden="true" />
+          <dl className="dshbm_details">
+            {/* 充值余额 headlines; 赠金 gets its own row only when it exists — the
+                same split the shipped account card uses, never summed. */}
+            <Row label="充值余额" value={paidText} />
+            {bonusText !== null ? <Row label="赠金余额" value={bonusText} /> : null}
+            {balance?.updatedAt !== null && balance?.updatedAt !== undefined ? (
+              <Row label="余额采样于" value={formatClock(balance.updatedAt)} />
+            ) : null}
+            {balance?.ageMs !== null && balance?.ageMs !== undefined ? <Row label="数据年龄" value={formatSpan(balance.ageMs)} /> : null}
+            <Row label="本次消费" value={session === null ? '--' : formatMoney(session.spend, currency, 4)} />
+            {session !== null && session.topUp > 0 ? <Row label="期间充值" value={formatMoney(session.topUp, currency)} /> : null}
+            {session?.baseline != null ? <Row label="基准时点" value={formatClock(session.baseline.time)} /> : null}
+            {session !== null ? <Row label="观测窗口" value={formatSpan(session.windowMs)} /> : null}
+            {session !== null ? <Row label="累计结算" value={`${session.chargedCount} 次`} /> : null}
+            {crossCheck !== null ? (
+              <>
+                <Row label="系数校验（估算）" value={formatMoney(crossCheck.cost, crossCheck.currency, 4)} />
+                <Row label="Token 合计" value={formatCount(crossCheck.tokens.total)} />
+              </>
+            ) : null}
+            {crossCheck === null && crossCheckTokens !== null ? <Row label="Token 合计" value={formatCount(crossCheckTokens)} /> : null}
+          </dl>
           {session?.partial === true ? (
             <div className="dshbm_note">基准取得较晚：会话开始到首次采样之间的消费无法从余额差还原，本次金额是下限。</div>
           ) : null}
@@ -304,12 +323,24 @@ const CSS = [
   // identical to its neighbours even if a theme moves the inherited color.
   '.dshbm_key{color:var(--dsw-alias-label-tertiary);font-weight:inherit}',
   '.dshbm_value{color:inherit;font-weight:inherit}',
-  '.dshbm_sep{color:var(--dsw-alias-separator-primary);margin:0 6px}',
-  '.dshbm_panel{position:fixed;z-index:1000;min-width:250px;max-width:330px;box-sizing:border-box;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:12px;line-height:1.6}',
-  '.dshbm_title{font-weight:600;margin-bottom:6px}',
-  '.dshbm_row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}',
-  '.dshbm_rowkey{color:var(--dsw-alias-label-tertiary)}',
-  '.dshbm_val{font-variant-numeric:tabular-nums;text-align:right}',
+  // `--dsw-alias-separator-primary` (the token the shipped pills use for their
+  // `·`) is NOT defined anywhere in the shell's theme layer, so reusing it here
+  // rendered the dot in the inherited color. The border token is the one that
+  // actually resolves for a divider.
+  '.dshbm_sep{color:var(--dsw-alias-border-l2);margin:0 6px}',
+  // The panel mirrors the official stat dialog (the popover the shipped stats
+  // pills open) token for token, so the two read as the same control.
+  '.dshbm_panel{z-index:1100;box-sizing:border-box;background:var(--dsw-specific-menu);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);width:max-content;min-width:min(300px,100vw - 24px);max-width:min(440px,100vw - 24px);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-secondary);cursor:default;border:0;border-radius:12px;padding:16px;font-size:12px;line-height:18px;position:fixed}',
+  '.dshbm_title{color:var(--dsw-alias-label-primary);justify-content:space-between;gap:16px;margin-bottom:8px;font-weight:500;display:flex}',
+  '.dshbm_titleLabel{align-items:center;gap:6px;min-width:0;display:inline-flex}',
+  '.dshbm_titleLabel svg{flex:none;width:14px;height:14px}',
+  '.dshbm_titleValue{font-variant-numeric:tabular-nums}',
+  '.dshbm_titleRule{border-top:.5px solid var(--dsw-alias-border-l2);margin-bottom:10px}',
+  '.dshbm_details{color:var(--dsw-alias-label-tertiary);grid-template-columns:minmax(76px,auto) minmax(0,1fr);gap:6px 16px;margin:0;display:grid}',
+  '.dshbm_details dt,.dshbm_details dd{min-width:0;margin:0}',
+  '.dshbm_details dd{color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;text-align:right}',
+  '.dshbm_note{color:var(--dsw-alias-label-tertiary);margin-top:10px}',
+  '.dshbm_warn{color:var(--dsw-alias-state-error-primary);margin-top:6px}',
   '.dshbm_rule{height:1px;margin:7px 0;background:var(--dsw-alias-border-l1)}',
   '.dshbm_note{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5;margin-top:6px}',
   '.dshbm_warn{color:var(--dsw-alias-state-error-primary);margin-top:6px;font-size:11px}',

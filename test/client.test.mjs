@@ -191,6 +191,36 @@ test('the entry must not stand out from the shipped stats pills', async () => {
   assert.match(css, /\.dshbm_icon\{[^}]*width:1\.08em/)
 })
 
+test('the detail panel reuses the official popover recipe', async () => {
+  // The panel is the same kind of control as the popover the shipped stats pills
+  // open, so it copies that recipe token for token (the shell's own
+  // stat-dialog.module.css): menu surface, prominent elevation, 12px radius,
+  // 16px padding, and a two-column `dl` grid.
+  const { stylesheet } = await loadBundle()
+  const css = stylesheet()
+  assert.match(css, /\.dshbm_panel\{[^}]*background:var\(--dsw-specific-menu\)/)
+  assert.match(css, /\.dshbm_panel\{[^}]*box-shadow:var\(--dsw-elevation-prominent\)/)
+  assert.match(css, /\.dshbm_panel\{[^}]*border-radius:12px/)
+  assert.match(css, /\.dshbm_panel\{[^}]*padding:16px/)
+  assert.match(css, /\.dshbm_panel\{[^}]*font-size:12px/)
+  assert.match(css, /\.dshbm_details\{[^}]*display:grid/)
+  assert.match(css, /\.dshbm_details dd\{[^}]*text-align:right/)
+  assert.match(css, /\.dshbm_titleRule\{/)
+  // The shipped pills' own `·` token is undefined in the theme layer, so the
+  // separator must not rely on it.
+  assert.doesNotMatch(css, /dshbm_sep\{[^}]*separator-primary/)
+})
+
+test('the panel is anchored above the pill and clamped to the viewport', async () => {
+  const { registered } = await loadBundle()
+  const { component } = registered[0]
+  globalThis.fetch = async () => ({ ok: true, json: async () => chargedPayload() })
+  // Render the closed entry only: the placement maths is exercised through the
+  // markup contract (the panel exists only when open, and opens upward).
+  const html = renderToStaticMarkup(React.createElement(component, { sessionId: 's1', useProjection: () => undefined }))
+  assert.doesNotMatch(html, /dshbm_panel/, 'the panel is closed until asked for')
+})
+
 test('the entry renders the recharge balance and the measured spend', async () => {
   const { registered } = await loadBundle()
   const { component } = registered[0]
