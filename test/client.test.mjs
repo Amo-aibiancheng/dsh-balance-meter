@@ -144,7 +144,7 @@ async function loadBundle() {
     },
   })
 
-  return { exports, registered, required, styleCount: () => styleTags.length }
+  return { exports, registered, required, styleCount: () => styleTags.length, stylesheet: () => styleTags[0]?.textContent ?? '' }
 }
 
 test('the bundle is the closure the shell evaluates', async () => {
@@ -166,6 +166,29 @@ test('it claims its own cell in the composer dock', async () => {
   assert.equal(descriptor.id, 'balance-meter', 'a fresh id sits beside the shipped entries')
   assert.equal(descriptor.order, 20, 'the shipped stats entry keeps order 0')
   assert.equal(typeof component, 'function')
+})
+
+test('the entry must not stand out from the shipped stats pills', async () => {
+  // A product rule, not a preference: the dock row is one centered line of
+  // ambient figures, so this entry inherits the row's font and renders every
+  // figure — labels AND amounts — in the same tertiary color with no weight
+  // change, exactly like the shipped pills. Emphasising the amounts is what made
+  // an earlier build the loudest thing in the row.
+  const { stylesheet } = await loadBundle()
+  const css = stylesheet()
+  // Same token and same fallback as the dock row itself, so the entry cannot be
+  // larger (or smaller) than the shipped pills beside it.
+  assert.match(css, /--dshbm-font-size:var\(--dsh-content-font-size-secondary,13px\)/)
+  assert.match(css, /\.dshbm_root\{[^}]*font-size:var\(--dshbm-font-size\)/)
+  assert.match(css, /\.dshbm_root\{[^}]*line-height:var\(--dshbm-line-height\)/)
+  assert.match(css, /\.dshbm_pill\{[^}]*font-size:inherit/)
+  assert.match(css, /\.dshbm_pill\{[^}]*font-weight:inherit/)
+  assert.match(css, /\.dshbm_value\{[^}]*font-weight:inherit/)
+  assert.match(css, /\.dshbm_key\{[^}]*font-weight:inherit/)
+  assert.doesNotMatch(css, /\.dshbm_(value|key)\{[^}]*font-weight:(?!inherit)/, 'no figure is bolded')
+  assert.doesNotMatch(css, /dshbm_strong/, 'the emphasis class is gone')
+  // The icon is sized in `em` so it tracks the row's font instead of pinning px.
+  assert.match(css, /\.dshbm_icon\{[^}]*width:1\.08em/)
 })
 
 test('the entry renders the recharge balance and the measured spend', async () => {

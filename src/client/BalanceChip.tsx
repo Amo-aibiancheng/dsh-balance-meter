@@ -50,7 +50,7 @@ function placePanel(anchor: HTMLElement, panel: HTMLElement): CSSProperties {
 function Row({ label, value }: { label: string; value: string }): JSX.Element {
   return (
     <div className="dshbm_row">
-      <span className="dshbm_key">{label}</span>
+      <span className="dshbm_rowkey">{label}</span>
       <span className="dshbm_val">{value}</span>
     </div>
   )
@@ -197,14 +197,21 @@ export function BalanceChip(props: BalanceChipProps): JSX.Element {
           <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
           <path d="M8 4.4v7.2M9.9 6.2c0-.9-.85-1.5-1.9-1.5s-1.9.6-1.9 1.5.85 1.35 1.9 1.55 1.9.65 1.9 1.55-.85 1.5-1.9 1.5-1.9-.6-1.9-1.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
         </svg>
+        {/*
+          Labels and amounts share ONE class on purpose: the shipped stats pills
+          render every figure in the tertiary label color with no weight change,
+          so emphasising the numbers here would make this entry the loudest thing
+          in the row. The separator between the two figures is the only mark that
+          distinguishes them.
+        */}
         <span className="dshbm_label">
           <span className="dshbm_key">余额 </span>
-          <span className="dshbm_strong">{paidText}</span>
+          <span className="dshbm_value">{paidText}</span>
           <span className="dshbm_sep" aria-hidden="true">
             ·
           </span>
           <span className="dshbm_key">本次 </span>
-          <span className="dshbm_strong">{session === null ? '--' : session.observed ? spendText : '待采样'}</span>
+          <span className="dshbm_value">{session === null ? '--' : session.observed ? spendText : '待采样'}</span>
         </span>
       </button>
 
@@ -270,20 +277,38 @@ export function ensureStyle(): void {
   document.head.appendChild(tag)
 }
 
-/** The plugin's own stylesheet; token-driven so every theme works. */
+/**
+ * The plugin's own stylesheet; token-driven so every theme works.
+ *
+ * Typography is deliberately COPIED from the shipped stats pills rather than
+ * invented: the dock row is a single centered flex line, so this entry has to
+ * read as one more pill in it, not as an announcement. That means
+ * `font: inherit; line-height: inherit` (so the row's own secondary content
+ * font decide the size), the tertiary label color for everything including the
+ * amounts, and no weight change anywhere. Only the hover/expanded fill is kept,
+ * because the shipped pills have exactly that.
+ */
 const CSS = [
-  '.dshbm_root{display:inline-flex;align-items:center}',
-  '.dshbm_pill{box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:1px 8px;border:none;border-radius:24px;background:0 0;color:var(--dsw-alias-label-tertiary);font:inherit;font-variant-numeric:tabular-nums;line-height:inherit;white-space:nowrap;max-width:100%;cursor:pointer}',
+  // Mirror of the shipped dock row's own font declaration, so this entry cannot
+  // drift from its neighbours in either direction: same token, same fallback.
+  ':root{--dshbm-font-size:var(--dsh-content-font-size-secondary,13px);--dshbm-line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px))}',
+  '.dshbm_root{display:inline-flex;align-items:center;font-size:var(--dshbm-font-size);line-height:var(--dshbm-line-height)}',
+  '.dshbm_pill{box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;padding:1px 8px;border:none;border-radius:24px;background:0 0;color:var(--dsw-alias-label-tertiary);font-family:inherit;font-size:inherit;font-weight:inherit;font-variant-numeric:tabular-nums;line-height:inherit;white-space:nowrap;max-width:100%;cursor:pointer}',
   '.dshbm_pill:hover,.dshbm_pill[aria-expanded="true"]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}',
   '.dshbm_pill[data-loading="1"]{opacity:.65}',
-  '.dshbm_icon{flex:none;width:14px;height:14px}',
+  // Sized in `em` so the glyph follows the row's font rather than pinning a px
+  // value the neighbouring icons would not share.
+  '.dshbm_icon{flex:none;width:1.08em;height:1.08em}',
   '.dshbm_label{overflow:hidden;text-overflow:ellipsis;min-width:0}',
-  '.dshbm_strong{color:var(--dsw-alias-label-secondary);font-weight:600}',
-  '.dshbm_sep{color:var(--dsw-alias-separator-primary);margin:0 2px}',
+  // The dock's own copy is already the tertiary color; stating it keeps the entry
+  // identical to its neighbours even if a theme moves the inherited color.
+  '.dshbm_key{color:var(--dsw-alias-label-tertiary);font-weight:inherit}',
+  '.dshbm_value{color:inherit;font-weight:inherit}',
+  '.dshbm_sep{color:var(--dsw-alias-separator-primary);margin:0 6px}',
   '.dshbm_panel{position:fixed;z-index:1000;min-width:250px;max-width:330px;box-sizing:border-box;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:12px;line-height:1.6}',
   '.dshbm_title{font-weight:600;margin-bottom:6px}',
   '.dshbm_row{display:flex;align-items:baseline;justify-content:space-between;gap:12px}',
-  '.dshbm_key{color:var(--dsw-alias-label-tertiary)}',
+  '.dshbm_rowkey{color:var(--dsw-alias-label-tertiary)}',
   '.dshbm_val{font-variant-numeric:tabular-nums;text-align:right}',
   '.dshbm_rule{height:1px;margin:7px 0;background:var(--dsw-alias-border-l1)}',
   '.dshbm_note{color:var(--dsw-alias-label-tertiary);font-size:11px;line-height:1.5;margin-top:6px}',
