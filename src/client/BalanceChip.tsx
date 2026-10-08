@@ -175,8 +175,11 @@ export function BalanceChip(props: BalanceChipProps): JSX.Element {
   const session = payload?.session ?? null
   const crossCheck = payload?.crossCheck ?? null
   const currency = balance?.currency ?? ''
-  const stale = balance?.error?.stale ?? null
-  const paidText = formatMoney(balance?.paid ?? stale?.paid ?? null, currency || stale?.currency || '')
+  // What the account row reports, ONE definition: the live figure when it is
+  // readable, otherwise the last known one. Both the headline and the 充值余额 row
+  // read this, so they can never disagree.
+  const paidValue = balance?.paid ?? balance?.error?.stale?.paid ?? null
+  const paidText = formatMoney(paidValue, currency || balance?.error?.stale?.currency || '')
   const bonusText = balance?.bonus !== null && balance?.bonus !== undefined && balance.bonus > 0 ? formatMoney(balance.bonus, currency) : null
   const spendText = session === null ? '--' : formatMoney(session.spend, currency)
   const unavailable = balance?.error !== null && balance?.error !== undefined
@@ -330,7 +333,15 @@ const CSS = [
   '.dshbm_sep{color:var(--dsw-alias-border-l2);margin:0 6px}',
   // The panel mirrors the official stat dialog (the popover the shipped stats
   // pills open) token for token, so the two read as the same control.
-  '.dshbm_panel{z-index:1100;box-sizing:border-box;background:var(--dsw-specific-menu);--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);width:max-content;min-width:min(300px,100vw - 24px);max-width:min(440px,100vw - 24px);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-secondary);cursor:default;border:0;border-radius:12px;padding:16px;font-size:12px;line-height:18px;position:fixed}',
+  //
+  // ONE deliberate difference: an opaque base layer is painted under the menu
+  // token. Theme skins are free to redefine `--dsw-specific-menu` as a
+  // translucent surface (the Catppuccin skin points it at its own
+  // `--dsw-menu-surface-fill`, which its "glass" mode makes see-through), and a
+  // transparent popover lets the conversation bleed through the numbers. The
+  // fallback chain means: solid layer-1, layer-2 over it, the themed menu surface
+  // on top — opaque when the theme is opaque, still legible when it is not.
+  '.dshbm_panel{z-index:1100;box-sizing:border-box;background-color:var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base));background-image:linear-gradient(var(--dsw-specific-menu,transparent),var(--dsw-specific-menu,transparent)),linear-gradient(var(--dsw-alias-bg-layer-2,transparent),var(--dsw-alias-bg-layer-2,transparent));--dsw-elevation-stroke-color:var(--dsw-alias-border-l1);width:max-content;min-width:min(300px,100vw - 24px);max-width:min(440px,100vw - 24px);box-shadow:var(--dsw-elevation-prominent);color:var(--dsw-alias-label-secondary);cursor:default;border:0;border-radius:12px;padding:16px;font-size:12px;line-height:18px;position:fixed}',
   '.dshbm_title{color:var(--dsw-alias-label-primary);justify-content:space-between;gap:16px;margin-bottom:8px;font-weight:500;display:flex}',
   '.dshbm_titleLabel{align-items:center;gap:6px;min-width:0;display:inline-flex}',
   '.dshbm_titleLabel svg{flex:none;width:14px;height:14px}',
@@ -338,6 +349,7 @@ const CSS = [
   '.dshbm_titleRule{border-top:.5px solid var(--dsw-alias-border-l2);margin-bottom:10px}',
   '.dshbm_details{color:var(--dsw-alias-label-tertiary);grid-template-columns:minmax(76px,auto) minmax(0,1fr);gap:6px 16px;margin:0;display:grid}',
   '.dshbm_details dt,.dshbm_details dd{min-width:0;margin:0}',
+  '.dshbm_details dt{color:var(--dsw-alias-label-tertiary)}',
   '.dshbm_details dd{color:var(--dsw-alias-label-secondary);font-variant-numeric:tabular-nums;text-align:right}',
   '.dshbm_note{color:var(--dsw-alias-label-tertiary);margin-top:10px}',
   '.dshbm_warn{color:var(--dsw-alias-state-error-primary);margin-top:6px}',

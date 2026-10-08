@@ -198,7 +198,11 @@ test('the detail panel reuses the official popover recipe', async () => {
   // 16px padding, and a two-column `dl` grid.
   const { stylesheet } = await loadBundle()
   const css = stylesheet()
-  assert.match(css, /\.dshbm_panel\{[^}]*background:var\(--dsw-specific-menu\)/)
+  // An opaque base layer first: a skin may redefine the menu surface as
+  // translucent (Catppuccin's glass mode does), and a see-through popover lets the
+  // conversation bleed through the numbers.
+  assert.match(css, /\.dshbm_panel\{[^}]*background-color:var\(--dsw-alias-bg-layer-1/)
+  assert.match(css, /\.dshbm_panel\{[^}]*background-image:linear-gradient\(var\(--dsw-specific-menu/)
   assert.match(css, /\.dshbm_panel\{[^}]*box-shadow:var\(--dsw-elevation-prominent\)/)
   assert.match(css, /\.dshbm_panel\{[^}]*border-radius:12px/)
   assert.match(css, /\.dshbm_panel\{[^}]*padding:16px/)
