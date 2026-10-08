@@ -1,5 +1,5 @@
 /**
- * dsh-balance-meter — browser half.
+ * @amo-aibiancheng/dsh-balance-meter — browser half.
  *
  * Registers one entry in `conversation.composer.dock` (the ambient row under the
  * composer card, where the shipped stats pills live) showing 充值余额 and what
@@ -10,7 +10,7 @@
  * a Session is the wallet delta the Host measured between two reads — the
  * algorithm lives in `../core/ledger.ts`.
  *
- * @module dsh-balance-meter/client
+ * @module @amo-aibiancheng/dsh-balance-meter/client
  */
 
 import { BalanceChip, ensureStyle } from './BalanceChip.tsx'
@@ -60,7 +60,7 @@ export function apply(ctx: Context): void {
       () => () => {
         wait()
       },
-      'dsh-balance-meter: footer entry',
+      '@amo-aibiancheng/dsh-balance-meter: footer entry',
     )
   })
 }

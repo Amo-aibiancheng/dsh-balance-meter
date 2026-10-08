@@ -7,7 +7,7 @@
  * standard seat (declared by `@deepseek-ai/dsh-client-ui-session`, whose client
  * module augments `SessionStandardProps`). Nothing here reads a global.
  *
- * @module dsh-balance-meter/client/BalanceChip
+ * @module @amo-aibiancheng/dsh-balance-meter/client/BalanceChip
  */
 import { type JSX } from 'react';
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';

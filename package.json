@@ -1,5 +1,5 @@
 {
-  "name": "dsh-balance-meter",
+  "name": "@amo-aibiancheng/dsh-balance-meter",
   "version": "0.2.0",
   "description": "DSH Web 界面底部常驻标注：充值余额 + 本次会话已消费金额（按账户余额差测量）",
   "keywords": [

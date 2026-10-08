@@ -49,9 +49,18 @@ headline number.
 # local directory (development: rebuild-free, refresh the page after an edit)
 dsh plugin --profile <profile> add link:/absolute/path/to/dsh-balance-meter
 
-# npm (not published yet — see "Publishing" below)
-dsh plugin --profile <profile> add dsh-balance-meter@latest
+# npm, author-scoped (not published yet — see "Publishing" below)
+dsh plugin --profile <profile> add @amo-aibiancheng/dsh-balance-meter@latest
 ```
+
+> **About the name**: this plugin is published under its author's scope (`@amo-aibiancheng/`).
+> An unscoped `dsh-balance-meter` also exists on npm — a **different, similar-purpose** plugin by
+> another author (also a balance/usage readout for the dsh web GUI). Installing one will not get
+> you the other.
+>
+> The repository keeps the short name `dsh-balance-meter` (an npm name need not match a repo
+> name), and so does the `id` of the row in `cordis.patch.yml` — that id is just a cell key, while
+> `name` is the resolvable package name.
 
 Replace `<profile>` with the profile you actually run (for example `desktop` or `web`).
 **Restart dsh once** afterwards (the host half must reload), then refresh the page.
@@ -62,7 +71,7 @@ row in the profile's `cordis.patch.yml`:
 ```yaml
 - insert:
     - id: dsh-balance-meter
-      name: dsh-balance-meter
+      name: '@amo-aibiancheng/dsh-balance-meter'
 ```
 
 ### Build from source
@@ -88,7 +97,7 @@ Everything has a default. Configuration is the `config:` block of the row in the
 
 ```yaml
 - id: dsh-balance-meter
-  name: dsh-balance-meter
+  name: '@amo-aibiancheng/dsh-balance-meter'
   config:
     pollIntervalMs: 45000      # balance sampling cadence, 5000 - 1800000
     requestTimeoutMs: 20000    # one balance read, 3000 - 120000

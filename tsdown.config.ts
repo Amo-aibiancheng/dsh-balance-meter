@@ -24,8 +24,14 @@
  */
 import { defineConfig } from 'tsdown'
 
-/** The package name the loader and the shell's module table key on. */
-const PACKAGE_ID = 'dsh-balance-meter'
+/**
+ * The package name the loader and the shell's module table key on.
+ *
+ * Scoped on purpose: an unscoped `dsh-balance-meter` already exists on npm (a
+ * plugin with nearly the same job, by the author of the other dsh-web plugins),
+ * so this package is published under its author's scope instead.
+ */
+const PACKAGE_ID = '@amo-aibiancheng/dsh-balance-meter'
 
 /** The host half: a plain Node ES module. */
 const host = defineConfig({

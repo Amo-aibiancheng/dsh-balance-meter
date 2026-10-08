@@ -44,9 +44,16 @@ DeepSeek 只对外提供一个关于钱的准确数字：账户余额。它没�
 # 本地目录（开发调试：改完跑 pnpm run build 再刷新页面，link 安装无需重装）
 dsh plugin --profile <profile> add link:/绝对路径/dsh-balance-meter
 
-# npm（尚未发布，见下方「发布」）
-dsh plugin --profile <profile> add dsh-balance-meter@latest
+# npm 作用域包（尚未发布，见下方「发布」）
+dsh plugin --profile <profile> add @amo-aibiancheng/dsh-balance-meter@latest
 ```
+
+> **包名说明**：本插件发布在作者作用域下（`@amo-aibiancheng/`）。npm 上另有一个无作用域的
+> `dsh-balance-meter`，是**别人写的、功能相近**的插件（同为 dsh Web GUI 的余额/用量读数），
+> 两者不是同一个项目，安装时别弄混。
+>
+> 仓库名仍是 `dsh-balance-meter`（npm 包名不必等于仓库名）；`cordis.patch.yml` 里那一行的
+> `id` 也用这个短名——它只是个 cell key，与包名无关，而 `name` 才是可解析的包名。
 
 `<profile>` 换成你实际使用的 profile 名（例如 `desktop`、`web`）。
 装好后**重启一次 dsh**（宿主半需要重新加载），刷新页面即可看到标注。
@@ -57,7 +64,7 @@ dsh plugin --profile <profile> add dsh-balance-meter@latest
 ```yaml
 - insert:
     - id: dsh-balance-meter
-      name: dsh-balance-meter
+      name: '@amo-aibiancheng/dsh-balance-meter'
 ```
 
 ### 从源码构建
@@ -80,7 +87,7 @@ dsh plugin --profile <profile> add link:$PWD
 
 ```yaml
 - id: dsh-balance-meter
-  name: dsh-balance-meter
+  name: '@amo-aibiancheng/dsh-balance-meter'
   config:
     pollIntervalMs: 45000      # 余额采样间隔（5000 – 1800000），下限是给官方接口留的余量
     requestTimeoutMs: 20000    # 单次余额查询超时（3000 – 120000）

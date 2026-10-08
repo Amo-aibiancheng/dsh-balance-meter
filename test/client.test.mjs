@@ -110,7 +110,7 @@ async function loadBundle() {
   // eslint-disable-next-line no-new-func
   new Function(source)()
   assert.notEqual(captured, null, 'the bundle must call window.__ModuleLoader__.load')
-  assert.equal(captured.id, 'dsh-balance-meter')
+  assert.equal(captured.id, '@amo-aibiancheng/dsh-balance-meter')
 
   const exports = captured.factory((name) => {
     required.push(name)

@@ -7,7 +7,7 @@
  * standard seat (declared by `@deepseek-ai/dsh-client-ui-session`, whose client
  * module augments `SessionStandardProps`). Nothing here reads a global.
  *
- * @module dsh-balance-meter/client/BalanceChip
+ * @module @amo-aibiancheng/dsh-balance-meter/client/BalanceChip
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type JSX } from 'react'
@@ -27,7 +27,7 @@ import { fetchStatus, type StatusPayload } from './wire.ts'
 export type BalanceChipProps = PropsRuntime<'conversation.composer.dock'>
 
 /** The stylesheet id, so a hot reload replaces rather than stacks it. */
-const CSS_ID = 'dsh-balance-meter/client.css'
+const CSS_ID = '@amo-aibiancheng/dsh-balance-meter/client.css'
 
 /**
  * Panel placement: anchored under the pill and clamped into the viewport.
@@ -293,7 +293,7 @@ export function ensureStyle(): void {
   if (typeof document === 'undefined') return
   if (document.querySelector(`style[data-plugin-css="${CSS_ID}"]`) !== null) return
   const tag = document.createElement('style')
-  tag.dataset['plugin'] = 'dsh-balance-meter'
+  tag.dataset['plugin'] = '@amo-aibiancheng/dsh-balance-meter'
   tag.dataset['pluginCss'] = CSS_ID
   tag.textContent = CSS
   document.head.appendChild(tag)

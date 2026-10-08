@@ -39,10 +39,14 @@ after(() => {
   })
 })
 
+/** The package name the profile must resolve, as the manifest declares it. */
+const PACKAGE = '@amo-aibiancheng/dsh-balance-meter'
+
 test('the installed package resolves by name to its manifest entry', () => {
-  const entry = fromProfile.resolve('dsh-balance-meter')
+  const entry = fromProfile.resolve(PACKAGE)
   assert.match(entry, /lib[\\/]index\.js$/, 'main must point at a file that exists')
-  const manifest = fromProfile('dsh-balance-meter/package.json')
+  const manifest = fromProfile(`${PACKAGE}/package.json`)
+  assert.equal(manifest.name, PACKAGE)
   assert.equal(manifest.main, 'lib/index.js')
   assert.equal(manifest.exports['.'].default, './lib/index.js')
   assert.equal(manifest.exports['./client'].default, './lib/client.js')
@@ -51,18 +55,18 @@ test('the installed package resolves by name to its manifest entry', () => {
 })
 
 test('the client bundle the manifest declares exists and is the loader closure', async () => {
-  const clientPath = fromProfile.resolve('dsh-balance-meter/client')
+  const clientPath = fromProfile.resolve(`${PACKAGE}/client`)
   const { readFile } = await import('node:fs/promises')
   const source = await readFile(clientPath, 'utf8')
   // The shell evaluates this file; the first statement must be the only load call.
   assert.match(source, /^window\.__ModuleLoader__\.load\(\{/)
-  assert.match(source, /id: "dsh-balance-meter"/)
+  assert.match(source, /id: "@amo-aibiancheng\/dsh-balance-meter"/)
   assert.match(source, /factory: \(require\) => \{/)
   assert.doesNotMatch(source, /^\s*export /m, 'an ES export would be a syntax error in the shell')
 })
 
 test('the installed host half activates and answers a route', async () => {
-  const host = await import(pathToFileURL(fromProfile.resolve('dsh-balance-meter')).href)
+  const host = await import(pathToFileURL(fromProfile.resolve(PACKAGE)).href)
   assert.equal(typeof host.apply, 'function')
   assert.deepEqual([...host.inject].sort(), ['deepseekAccount', 'webServer'])
   assert.equal(typeof host.Config, 'function', 'the schema the loader resolves')
