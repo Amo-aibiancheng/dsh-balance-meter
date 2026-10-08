@@ -60,7 +60,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "pretest": "pnpm run build",
     "test": "node --test \"test/*.test.mjs\"",
-    "check": "pnpm run typecheck && pnpm run test"
+    "check": "pnpm run typecheck && pnpm run test",
+    "prepublishOnly": "pnpm run check"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.2"
@@ -92,5 +93,17 @@
     "typescript": "~5.7.2"
   },
   "license": "MIT",
-  "private": false
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Amo-aibiancheng/dsh-balance-meter.git"
+  },
+  "homepage": "https://github.com/Amo-aibiancheng/dsh-balance-meter#readme",
+  "bugs": {
+    "url": "https://github.com/Amo-aibiancheng/dsh-balance-meter/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
 }
