@@ -79,14 +79,14 @@ Everything has a default. Configuration is the `config:` block of the row in the
       output: 9
 ```
 
-Out-of-range numbers are clamped; a wrong type falls back to the default, so a bad edit cannot
-pin the provider.
+`Config` is a **schemastery schema**, the same shape the official plugins declare — not a
+hand-written object of defaults. The loader resolves a row by calling the schema itself, so a plain
+object makes the row **fail to import**, which is exactly how the first version of this plugin died
+with `failed to import`; the activation case in `test/host.test.mjs` now guards it.
 
-> Why there is no generated settings page: the DSH loader validates a plugin's exported `Config`
-> by calling `Config.validate()`, so a plain-JS object of defaults makes the row crash at load time
-> (verified against a real cordis, and pinned by a test). This plugin therefore exports no `Config`;
-> the values are read from the patch and validated here. The cost is that Settings shows no page
-> for it.
+Out-of-range values are rejected by the schema and never reach the provider. Every configurable field
+is `volatile()`, so a Settings edit applies to the **running** row immediately (the Host reads each
+value through `.get()` on every use) with no restart.
 
 ## The algorithm and its edges
 
@@ -112,28 +112,50 @@ are folded into the next one.
 ## Layout
 
 ```
-src/core/ledger.js   pure algorithm core (no Node, no DOM): observation timeline + per-session accumulator
-src/index.js         host half: reads the official balance, polls, accounts tokens, serves /dsh-balance-meter/*
-lib/client.js        browser half: a window.__ModuleLoader__.load closure registering conversation.composer.dock
-test/ledger.test.mjs algorithm cases, one per row of the table above
-test/host.test.mjs   host cases: routes, degraded paths, config clamping
-test/client.test.mjs browser cases: module format, slot registration, rendered text
+src/core/ledger.ts      pure algorithm core (no Node, no DOM): timeline + per-session accumulator
+src/index.ts            host half: schemastery Config, balance reads, polling, token accounting, routes
+src/client/index.tsx    browser half entry: registers the conversation.composer.dock entry
+src/client/BalanceChip.tsx  the footer pill and its detail panel (React, props from the slot declaration)
+src/client/format.ts    money and duration formatting rules
+src/client/wire.ts      the payload types and fetch the browser half depends on
+lib/index.js            built host half (ESM)
+lib/client.js           built browser half (the __ModuleLoader__ closure)
+lib/types/**            built type declarations
+test/ledger.test.mjs    algorithm cases, one per row of the table above
+test/host.test.mjs      host cases on a real cordis app: activation, teardown, routes, degraded paths, Config
+test/client.test.mjs    browser cases: module format, slot registration, rendering
+test/format.test.mjs    money formatting cases
 ```
 
-Design notes:
+### Written to the DSH conventions
 
+- **TypeScript and the official build chain**: `tsc` emits declarations to `lib/types`, `tsdown`
+  emits `lib/index.js` and `lib/client.js` — the same published shape (`main` / `types` / `exports`)
+  the `@deepseek-ai/*` packages themselves use.
+- **Types come from the SDK, not from guesses**: `PropsRuntime<'conversation.composer.dock'>` is the
+  slot's own declaration (with `sessionId` and `useProjection` merged in by `dsh-client-ui-session`),
+  and the host half uses the official `ctx.deepseekAccount` / `ctx.webServer` types.
+  `pnpm run typecheck` is that gate.
+- **`Config` is a schemastery schema**, so the loader can resolve it and Settings can generate a page.
+- **The browser half bundles no React**: `react`, `react/jsx-runtime` and every `@deepseek-ai/*`
+  package stay bare `require()` calls resolved by the shell's static module table. A second copy of
+  React inside the plugin would break hooks across that boundary.
 - **No credential leaves the host.** The browser half reads only this package's own routes.
 - **One state authority.** The accumulator lives host-side, so tabs cannot double count.
-- **No build step.** The browser half is a `__ModuleLoader__` closure; `require("react")` resolves
-  against the shell's static module table.
 - **No host UI is taken over.** The plugin appends one entry to the additive
-  `conversation.composer.dock` list; it never shadows a shipped seat.
+  `conversation.composer.dock` list (`order: 20`; the shipped stats pill keeps `order: 0`).
 
 ## Development
 
 ```sh
-node --test test/          # algorithm cases, no third-party dependency
+pnpm install
+pnpm run check      # typecheck → build → test (43 cases)
+pnpm run build      # build only
+pnpm run typecheck  # types only, against the real SDK
+pnpm run watch      # incremental build while editing the browser half
 ```
+
+Under a `link:` install, run `pnpm run build` and refresh the page; no reinstall is needed.
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "name": "dsh-balance-meter",
-  "version": "0.1.0",
-  "description": "DSH Web 界面底部常驻标注：账户余额 + 本次会话已消费金额（按账户余额差测量）",
+  "version": "0.2.0",
+  "description": "DSH Web 界面底部常驻标注：充值余额 + 本次会话已消费金额（按账户余额差测量）",
   "keywords": [
     "dsh",
     "dsh-plugin",
@@ -15,16 +15,17 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
   "exports": {
     ".": {
+      "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
     "./client": {
+      "types": "./lib/types/client/index.d.ts",
       "default": "./lib/client.js"
     },
-    "./core/ledger": {
-      "default": "./src/core/ledger.js"
-    },
+    "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "dsh": {
@@ -35,7 +36,11 @@
       "patch": "./cordis.patch.yml"
     },
     "client": {
-      "inject": [],
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
       "platform": "web"
     }
   },
@@ -48,7 +53,42 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node --test \"test/*.test.mjs\""
+    "bundle": "tsc -p tsconfig.build.json && tsdown",
+    "build": "tsc -p tsconfig.build.json && tsdown",
+    "watch": "tsdown --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "pnpm run build",
+    "test": "node --test \"test/*.test.mjs\"",
+    "check": "pnpm run typecheck && pnpm run test"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh": ">=0.2.0-rc.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-api-session-controller": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.0.1-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-deepseek-account": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-host-webserver": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-session-projection": "0.2.0-rc.2",
+    "@deepseek-ai/dsh-token-meter": "0.2.0-rc.2",
+    "@types/node": "^22.20.0",
+    "@types/react": "~18.3.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsdown": "^0.22.2",
+    "typescript": "~5.7.2"
   },
   "license": "MIT",
   "private": false

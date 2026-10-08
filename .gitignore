@@ -1,5 +1,7 @@
-# Nothing generated belongs in the package: this plugin has no build step.
+# Installed from the lockfile.
 node_modules/
+
+# Editor / OS noise.
 *.log
 .DS_Store
 Thumbs.db

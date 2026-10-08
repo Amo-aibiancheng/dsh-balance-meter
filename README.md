@@ -35,7 +35,7 @@ DeepSeek 只对外提供一个关于钱的准确数字：账户余额。它没�
 ## 安装
 
 ```sh
-# 本地目录（开发调试：改完代码刷新页面即可，link 安装无需重装）
+# 本地目录（开发调试：改完跑 pnpm run build 再刷新页面，link 安装无需重装）
 dsh plugin --profile <profile> add link:/绝对路径/dsh-balance-meter
 
 # npm（发布后）
@@ -73,11 +73,12 @@ dsh plugin --profile <profile> add dsh-balance-meter@latest
       output: 9
 ```
 
-数值越界会被夹到安全区间，写错类型则回落到默认值——不会把官方接口打挂。
+`Config` 是按官方插件同款写的 **schemastery schema**（不是手写默认值对象）：加载器会调用
+schema 本身来解析这一行，纯对象会让插件行**直接加载失败**——这正是第一版崩在
+`failed to import` 的原因，现在由 `test/host.test.mjs` 的激活用例守着。
 
-> 为什么没有自动生成的设置页：DSH 的加载器会用 `Config.validate()` 校验插件导出的 `Config`，
-> 一个纯 JS 的默认值对象会让插件行在加载时直接崩掉（已在真实 cordis 上验证并写进用例）。
-> 所以本插件不导出 `Config`，配置从 patch 读入后由自己校验；代价是设置面板里不会出现本插件的页面。
+越界值会被 schema 直接拒绝，不会流到官方接口。所有可调字段都是 `volatile()`：在设置里改动
+会**立刻**作用于正在运行的这一行（宿主每读一次配置都经过 `.get()`），无需重启。
 
 ## 算法与边界
 
@@ -101,27 +102,47 @@ dsh plugin --profile <profile> add dsh-balance-meter@latest
 ## 实现结构
 
 ```
-src/core/ledger.js   纯函数算法核心（无 Node、无 DOM）：观测时间线 + 每会话累加器
-src/index.js         宿主半：读官方余额、轮询、token 记账、/dsh-balance-meter/* 路由
-lib/client.js        浏览器半：window.__ModuleLoader__.load 闭包，注册 conversation.composer.dock
-test/ledger.test.mjs 算法用例：逐条钉住上表的每一行
-test/host.test.mjs   宿主用例：路由、降级路径、配置夹取
-test/client.test.mjs 浏览器半用例：模块格式、槽位注册、渲染文本
+src/core/ledger.ts      纯函数算法核心（无 Node、无 DOM）：观测时间线 + 每会话累加器
+src/index.ts            宿主半：schemastery Config、读官方余额、轮询、token 记账、/dsh-balance-meter/* 路由
+src/client/index.tsx    浏览器半入口：注册 conversation.composer.dock 条目
+src/client/BalanceChip.tsx  底部胶囊与明细面板（React，props 取自槽位声明）
+src/client/format.ts    金额/时长格式化（子单位保留 4 位小数等规则）
+src/client/wire.ts      两端之间的数据结构与 fetch（浏览器半只依赖它）
+lib/index.js            构建产物：宿主半（ESM）
+lib/client.js           构建产物：浏览器半（__ModuleLoader__ 闭包）
+lib/types/**            构建产物：类型声明
+test/ledger.test.mjs    算法用例：逐条钉住上表的每一行
+test/host.test.mjs      宿主用例：真实 cordis 上的激活/卸载、路由、降级路径、Config 校验
+test/client.test.mjs    浏览器半用例：模块格式、槽位注册、渲染
+test/format.test.mjs    金额格式化用例
 ```
 
-设计要点：
+### 按 DSH 官方插件的约定写
 
-- **凭据不出宿主**。浏览器半只读本插件自己的路由，从不接触任何 token。
-- **一份状态**。计费累加器只存在于宿主，多标签页不重复计费、不各记各的账。
-- **无需构建**。浏览器半就是 `__ModuleLoader__` 闭包格式，`require("react")` 直接命中原生模块表，
-  改完刷新页面即可，没有 tsc / tsdown 步骤。
-- **不抢宿主 UI**。只往 `conversation.composer.dock` 追加一个 list 条目，不覆盖任何既有座位。
+- **TypeScript + 官方构建链**：`tsc` 出类型声明到 `lib/types`，`tsdown` 出 `lib/index.js`
+  与 `lib/client.js`，与 `@deepseek-ai/*` 包自身的发布形态一致（`main` / `types` / `exports`）。
+- **类型来自 SDK，不是猜的**：`PropsRuntime<'conversation.composer.dock'>` 直接取槽位声明的
+  真实 props（`sessionId`、`useProjection` 由 `dsh-client-ui-session` 的模块增强提供），
+  宿主侧用 `ctx.deepseekAccount` / `ctx.webServer` 的官方类型。`pnpm run typecheck` 就是这道闸门。
+- **Config 是 schemastery schema**，可被设置页生成、可被加载器解析。
+- **浏览器半不打包 React**：`react`、`react/jsx-runtime`、`@deepseek-ai/*` 一律留作
+  `require()`，由壳的原生模块表解析；打进来第二份 React 会直接破坏 hooks 边界。
+- **凭据不出宿主**：浏览器半只读本插件自己的路由，从不接触 token。
+- **一份状态**：计费累加器只存在于宿主，多标签页不会各记各的账。
+- **不抢宿主 UI**：只往 `conversation.composer.dock` 追加一个 list 条目（`order: 20`，
+  官方统计胶囊仍是 `order: 0`），不覆盖任何既有座位。
 
 ## 开发
 
 ```sh
-node --test test/          # 算法用例，无第三方依赖
+pnpm install
+pnpm run check      # typecheck → build → test（43 条用例）
+pnpm run build      # 只构建
+pnpm run typecheck  # 只类型检查（对着真实 SDK 类型）
+pnpm run watch      # 改客户端半时增量构建
 ```
+
+`link:` 安装下改完代码跑一次 `pnpm run build`、刷新页面即可，不需要重装。
 
 ## 许可
 

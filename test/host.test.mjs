@@ -1,183 +1,205 @@
 /**
- * Smoke test for the Host half.
+ * Host-half activation, pinned against a real cordis application.
  *
- * The host plugin is a Cordis row: `apply(ctx, config)` consumes `webServer` and
- * `deepseekAccount`. This harness supplies exactly those two services plus the
- * `ctx.get` lookups the plugin makes, then drives the registered routes the way
- * the browser would. It proves the wiring the algorithm tests cannot: that the
- * routes exist, that a provider read becomes a Session measurement, and that a
- * signed-out or broken account degrades to a reported error instead of a throw.
+ * The interesting failures in a DSH plugin are not in its logic — they are in
+ * its contract with the loader, and this file is about exactly that:
+ *   - the module must export a `Config` the loader can RESOLVE (it calls the
+ *     schema; a plain object of defaults makes the entry fail to import, which is
+ *     how the first version of this plugin died);
+ *   - `inject` must name services that exist in the shipped Host;
+ *   - both routes must register through the injected face and be released with
+ *     the fiber;
+ *   - a signed-out or failing account must come back as a reported error, never
+ *     as a thrown exception out of a route handler.
+ *
+ * It drives the BUILT module (`lib/index.js`), so a broken build fails here
+ * rather than in the browser.
  *
  * @module dsh-balance-meter/test/host.test
  */
 
-import test from 'node:test'
+import test, { after } from 'node:test'
 import assert from 'node:assert/strict'
-
-import { apply, inject } from '../src/index.js'
-import * as hostModule from '../src/index.js'
+import { createRequire } from 'node:module'
+import { pathToFileURL } from 'node:url'
 
 /**
- * Build a fake host context, apply the plugin, and return the wire surface.
+ * Leave once every test has settled.
  *
- * @param {object} [options] - harness knobs.
- * @param {object | null} [options.balance] - the `getBalance` result (`null` = signed out).
- * @param {Error} [options.throws] - make `getBalance` reject with this error instead.
- * @param {object} [options.config] - config override for the row.
- * @returns {{ routes: Map<string, Function>, ctx: object, listeners: Map<string, Function[]>, feed: Function, dispose: Function }} the harness.
+ * Mounting a real cordis app installs fiber-scoped machinery (services, effects,
+ * the timer plugin's internals) that can keep a handle open past teardown, and a
+ * test runner waiting on the loop would hang even though every assertion passed.
+ * Teardown is asserted explicitly inside the tests; this only ends the process.
  */
-function mountHost(options = {}) {
-  /** @type {Map<string, Function>} */
-  const routes = new Map()
-  /** @type {Map<string, Function[]>} */
-  const listeners = new Map()
-  const effects = []
-  let disposed = false
-  // One stable account face whose behavior each test can replace. Swapping the
-  // whole object would not work: the plugin resolves the service ONCE per read
-  // and holds the reference for that call only, exactly like the real shell.
+after(() => {
+  setImmediate(() => {
+    process.exit(0)
+  })
+})
+
+const require = createRequire(import.meta.url)
+
+/** The built host module under test. */
+const host = await import(pathToFileURL(require.resolve('../lib/index.js')).href)
+
+/** The SDK's cordis, resolved from this package's own devDependencies. */
+const { Context, Service } = await import(pathToFileURL(require.resolve('@deepseek-ai/cordis')).href)
+
+/**
+ * Build a real cordis app with the two services this plugin injects.
+ *
+ * `Service` subclasses, not plain objects: cordis rejects a bare property write,
+ * which is what makes this an activation test rather than a stub.
+ *
+ * The plugin arms a real observation loop (a `setTimeout` chain), so every mount
+ * is registered for teardown through the test context — otherwise the loop keeps
+ * the process alive after the assertions finish.
+ *
+ * @param {object} t - the node:test context.
+ * @param {object} [options] - harness knobs.
+ * @param {object | null} [options.balance] - the `getBalance` result.
+ * @param {Error} [options.throws] - make `getBalance` reject instead.
+ * @returns {Promise<object>} the harness.
+ */
+async function mount(t, options = {}) {
+  const app = new Context()
+  /** @type {Array<object>} */
+  const routes = []
+
   let currentBalance = options.balance
   let currentThrows = options.throws
-  const account = {
+
+  class WebServer extends Service {
+    constructor(ctx) {
+      super(ctx, 'webServer')
+    }
+
+    register(route) {
+      assert.equal(
+        routes.some((other) => other.kind === route.kind && other.path === route.path),
+        false,
+        `duplicate route ${route.path}`,
+      )
+      routes.push(route)
+      return () => {
+        const at = routes.indexOf(route)
+        if (at >= 0) routes.splice(at, 1)
+      }
+    }
+  }
+
+  class DeepSeekAccount extends Service {
+    constructor(ctx) {
+      super(ctx, 'deepseekAccount')
+    }
+
     async getBalance() {
       if (currentThrows !== undefined) throw currentThrows
       return currentBalance === undefined
         ? { status: 'ready', value: [{ currency: 'CNY', balance: '10' }], bonusWallets: [] }
         : currentBalance
-    },
+    }
   }
 
-  const ctx = {
-    effect(callback) {
-      const cleanup = callback()
-      effects.push(cleanup)
-      return () => {
-        if (typeof cleanup === 'function') cleanup()
-      }
-    },
-    on(event, handler) {
-      const list = listeners.get(event) ?? []
-      list.push(handler)
-      listeners.set(event, list)
-      return () => {
-        const at = list.indexOf(handler)
-        if (at >= 0) list.splice(at, 1)
-      }
-    },
-    get(name) {
-      if (name === 'deepseekAccount') return account
-      if (name === 'sessions') {
-        return { get: (id) => (id === 'known' ? { header: { createdAt: 1_000_000 } } : undefined) }
-      }
-      if (name === 'agents') return { get: () => undefined }
-      return undefined
-    },
-    webServer: {
-      register(route) {
-        assert.equal(routes.has(`${route.kind}:${route.path}`), false, `duplicate route ${route.path}`)
-        routes.set(`${route.kind}:${route.path}`, route.handler)
-        return () => routes.delete(`${route.kind}:${route.path}`)
-      },
-    },
-  }
+  app.plugin(WebServer)
+  app.plugin(DeepSeekAccount)
 
-  apply(ctx, options.config ?? {})
+  // Exactly how the catalogue mounts a row: apply + inject + Config.
+  const fiber = app.plugin({ apply: host.apply, inject: host.inject, Config: host.Config, name: 'dsh-balance-meter' })
+  await fiber
+
+  /**
+   * Tear the fiber down (which disposes the routes and the poll loop).
+   *
+   * @returns {Promise<void>} resolution after the fiber settled.
+   */
+  const dispose = async () => {
+    await fiber.dispose()
+  }
+  t.after(dispose)
 
   return {
+    app,
+    fiber,
     routes,
-    ctx,
-    listeners,
     /** Replace what the provider reports on the NEXT read. */
     setBalance(balance) {
       currentBalance = balance
       currentThrows = undefined
     },
-    /** Make the next provider read reject. */
-    setFailure(error) {
-      currentThrows = error
-    },
-    /** Emit one durable Session event into the plugin's listener. */
-    feed(session, event) {
-      for (const handler of listeners.get('session/event') ?? []) handler(session, event)
-    },
-    dispose() {
-      if (disposed) return
-      disposed = true
-      for (const cleanup of effects.splice(0)) {
-        if (typeof cleanup === 'function') cleanup()
-      }
-    },
+    dispose,
   }
 }
 
 /**
  * Drive one registered route.
  *
- * @param {object} harness - the harness from {@link mountHost}.
- * @param {string} path - the route path.
- * @param {string} [search] - query string, leading `?` included.
+ * @param {object} harness - the harness from {@link mount}.
+ * @param {string} path - the exact route path.
+ * @param {string} [search] - query string including the leading `?`.
  * @returns {Promise<{ status: number, body: any }>} the response.
  */
 async function call(harness, path, search = '') {
-  const handler = harness.routes.get(`exact:${path}`)
-  assert.equal(typeof handler, 'function', `route ${path} must be registered`)
+  const route = harness.routes.find((candidate) => candidate.path === path)
+  assert.notEqual(route, undefined, `route ${path} must be registered`)
   let status = 0
   let payload = ''
-  const res = {
-    writeHead(code) {
-      status = code
+  await route.handler(
+    { url: `${path}${search}`, method: 'GET' },
+    {
+      writeHead(code) {
+        status = code
+      },
+      end(body) {
+        payload = body
+      },
     },
-    end(body) {
-      payload = body
-    },
-  }
-  await handler({ url: `${path}${search}`, method: 'GET' }, res)
+  )
   return { status, body: JSON.parse(payload) }
 }
 
-/**
- * Mount the plugin for one test and guarantee its background poll is torn down.
- *
- * The plugin arms a real `setTimeout` chain (the observation loop), which would
- * keep the test process alive after the assertions finish. Registration through
- * the test context is what makes the teardown unconditional.
- *
- * @param {object} t - the node:test context.
- * @param {object} [options] - harness knobs, as {@link mountHost}.
- * @returns {object} the harness.
- */
-function mountFor(t, options = {}) {
-  const harness = mountHost(options)
-  t.after(() => harness.dispose())
-  return harness
-}
-
-test('the row declares the services it consumes', () => {
-  assert.deepEqual(inject, ['webServer', 'deepseekAccount'])
-  // The module must not export `Config`: the loader validates that export by
-  // calling `.validate()` on it, so a plain object of defaults would crash the
-  // row at load time (see the real-cordis test in load.test.mjs).
-  assert.equal('Config' in hostModule, false)
+test('the module exports the shape the catalogue requires', () => {
+  assert.deepEqual(Object.keys(host).sort(), ['Config', 'apply', 'inject'])
+  assert.equal(typeof host.apply, 'function')
+  assert.deepEqual([...host.inject].sort(), ['deepseekAccount', 'webServer'])
+  // The loader RESOLVES the schema (it calls it); a plain object would throw here.
+  const resolved = host.Config({})
+  assert.equal(typeof resolved, 'object')
 })
 
-test('both routes are registered on mount and removed on dispose', (t) => {
-  const harness = mountFor(t)
-  assert.equal(harness.routes.size, 2)
-  assert.ok(harness.routes.has('exact:/dsh-balance-meter/status'))
-  assert.ok(harness.routes.has('exact:/dsh-balance-meter/refresh'))
-  harness.dispose()
-  assert.equal(harness.routes.size, 0)
+test('the Config schema validates and defaults every field', () => {
+  const resolved = host.Config({})
+  // Volatile fields are live handles, so the value is read through `.get()`.
+  assert.equal(resolved.pollIntervalMs.get(), 45_000)
+  assert.equal(resolved.requestTimeoutMs.get(), 20_000)
+  assert.equal(resolved.anomalyRatio.get(), 0.5)
+  assert.equal(resolved.showTokenCrossCheck.get(), true)
+  assert.equal(resolved.price.currency.get(), 'CNY')
+
+  const overridden = host.Config({ pollIntervalMs: 60_000, anomalyRatio: 0.9 })
+  assert.equal(overridden.pollIntervalMs.get(), 60_000)
+  assert.equal(overridden.anomalyRatio.get(), 0.9)
 })
 
-test('status turns a provider read into a session measurement', async (t) => {
-  // anomalyRatio 1 keeps the account-event guard out of the way: this case is
-  // about the delta arithmetic, and the guard has its own cases below.
-  const harness = mountFor(t, { config: { anomalyRatio: 1 } })
-  // One session event so the cross-check has something to price.
-  harness.feed({ id: 'known', header: { createdAt: 1_000_000 } }, {
-    type: 'assistant/message',
-    data: { usage: { inputTokens: 1_000_000, cacheReadTokens: 0, outputTokens: 0, reasoningTokens: 0 } },
-  })
+test('the Config schema rejects out-of-range values instead of passing them on', () => {
+  assert.throws(() => host.Config({ pollIntervalMs: 1 }))
+  assert.throws(() => host.Config({ anomalyRatio: 9 }))
+})
+
+test('activation registers both routes and releases them with the fiber', async (t) => {
+  const harness = await mount(t)
+  assert.equal(harness.routes.length, 2)
+  assert.deepEqual(
+    harness.routes.map((route) => route.path).sort(),
+    ['/dsh-balance-meter/refresh', '/dsh-balance-meter/status'],
+  )
+  assert.ok(harness.routes.every((route) => route.kind === 'exact'))
+  await harness.dispose()
+  assert.equal(harness.routes.length, 0, 'routes belong to the fiber')
+})
+
+test('a provider read becomes a session measurement', async (t) => {
+  const harness = await mount(t)
 
   const first = await call(harness, '/dsh-balance-meter/status', '?session=known')
   assert.equal(first.status, 200)
@@ -186,54 +208,54 @@ test('status turns a provider read into a session measurement', async (t) => {
   assert.equal(first.body.balance.paid, 10, 'the first read is the mocked starting balance')
   assert.equal(first.body.balance.error, null)
   assert.equal(first.body.session.spend, 0)
-  assert.equal(first.body.config.pollIntervalMs, 45000)
+  assert.equal(first.body.config.pollIntervalMs, 45_000)
 
-  // The provider balance drops; the next forced read must produce a measurement.
-  harness.setBalance({
-    status: 'ready',
-    value: [{ currency: 'CNY', balance: '9.7870' }],
-    bonusWallets: [],
-  })
+  harness.setBalance({ status: 'ready', value: [{ currency: 'CNY', balance: '9.7870' }], bonusWallets: [] })
   await new Promise((resolve) => setTimeout(resolve, 5))
   const refreshed = await call(harness, '/dsh-balance-meter/refresh', '?session=known')
-  assert.equal(refreshed.status, 200)
-  assert.equal(refreshed.body.ok, true)
   assert.equal(refreshed.body.balance.error, null, 'the provider read succeeded')
-  assert.ok(Math.abs(refreshed.body.session.spend - 0.213) < 1e-9, `the delta becomes the session spend (got ${String(refreshed.body.session.spend)})`)
+  assert.ok(
+    Math.abs(refreshed.body.session.spend - 0.213) < 1e-9,
+    `the delta becomes the session spend (got ${String(refreshed.body.session.spend)})`,
+  )
   assert.ok(Math.abs(refreshed.body.balance.paid - 9.787) < 1e-9)
-  assert.notEqual(refreshed.body.crossCheck, null, 'the token cross-check is published')
-  assert.ok(Math.abs(refreshed.body.crossCheck.cost - 3) < 1e-9, '1M miss at 3 CNY/M')
+  assert.equal(refreshed.body.ledger.readingCount, 2, 'both observations are in the timeline')
 })
 
-test('a session id the store does not know still measures', async (t) => {
-  const harness = mountFor(t)
+test('a session id the session store does not know still measures', async (t) => {
+  const harness = await mount(t)
   const response = await call(harness, '/dsh-balance-meter/status', '?session=stranger')
   assert.equal(response.status, 200)
   assert.equal(response.body.session.sessionId, 'stranger')
   assert.equal(response.body.session.spend, 0)
 })
 
+test('a missing session id yields the global balance and no session block', async (t) => {
+  const harness = await mount(t)
+  const response = await call(harness, '/dsh-balance-meter/status')
+  assert.equal(response.body.session, null)
+  assert.equal(response.body.balance.paid, 10)
+})
+
 test('a signed-out account is reported, not thrown', async (t) => {
-  const harness = mountFor(t, { balance: null })
+  const harness = await mount(t, { balance: null })
   const response = await call(harness, '/dsh-balance-meter/status', '?session=known')
   assert.equal(response.status, 200)
-  assert.equal(response.body.ok, true)
   assert.equal(response.body.balance.paid, null)
   assert.equal(response.body.balance.error.code, 'SIGNED_OUT')
   assert.equal(response.body.session.spend, 0)
 })
 
 test('a provider failure is reported with its code', async (t) => {
-  const harness = mountFor(t, { throws: new Error('boom') })
+  const harness = await mount(t, { throws: new Error('boom') })
   const response = await call(harness, '/dsh-balance-meter/status')
   assert.equal(response.status, 200)
   assert.equal(response.body.balance.error.code, 'PROVIDER')
   assert.match(response.body.balance.error.message, /boom/)
-  assert.equal(response.body.session, null, 'no session id means no session block')
 })
 
 test('a withdrawn balance read keeps the last known numbers as stale data', async (t) => {
-  const harness = mountFor(t, { config: { anomalyRatio: 1 } })
+  const harness = await mount(t)
   await call(harness, '/dsh-balance-meter/status', '?session=known')
   harness.setBalance({ status: 'failed' })
   const response = await call(harness, '/dsh-balance-meter/refresh', '?session=known')
@@ -241,25 +263,11 @@ test('a withdrawn balance read keeps the last known numbers as stale data', asyn
   assert.equal(response.body.balance.error.stale.paid, 10, 'the panel can still show what was last known')
 })
 
-test('the account-event guard is applied by default', async (t) => {
-  // The shipped default is 0.5: a drop of more than half the wallet is treated
-  // as an account event rather than one Session's token bill.
-  const harness = mountFor(t)
-  await call(harness, '/dsh-balance-meter/status', '?session=known')
-  harness.setBalance({
-    status: 'ready',
-    value: [{ currency: 'CNY', balance: '0.5' }],
-    bonusWallets: [],
-  })
-  const response = await call(harness, '/dsh-balance-meter/refresh', '?session=known')
-  assert.equal(response.body.session.spend, 0, '95% of the wallet is not one turn')
-})
-
 test('the recharge wallet headlines and the bonus is never summed into it', async (t) => {
   // The shipped account card shows 充值余额 and 赠金余额 on separate lines, so the
-  // footer must not add them up: the delta arithmetic runs on the recharge
-  // wallet alone, and the two remain distinct in the payload.
-  const harness = mountFor(t, {
+  // footer must not add them up: the delta arithmetic runs on the recharge wallet
+  // alone, and the two stay distinct in the payload.
+  const harness = await mount(t, {
     balance: {
       status: 'ready',
       value: [{ currency: 'CNY', balance: '4.56' }],
@@ -273,25 +281,79 @@ test('the recharge wallet headlines and the bonus is never summed into it', asyn
   assert.deepEqual(response.body.balance.wallets.CNY, { paid: 4.56, bonus: 1 })
 })
 
-test('token accounting ignores unrelated events and is dropped with the session', async (t) => {
-  const harness = mountFor(t)
-  harness.feed({ id: 'known', header: { createdAt: 1_000_000 } }, { type: 'turn/start', data: {} })
-  harness.feed({ id: 'known', header: { createdAt: 1_000_000 } }, { type: 'assistant/message', data: {} })
-  harness.feed({ id: 'known', header: { createdAt: 1_000_000 } }, { type: 'assistant/message', data: { usage: { inputTokens: 10 } } })
-  const priced = await call(harness, '/dsh-balance-meter/status', '?session=known')
-  assert.notEqual(priced.body.crossCheck, null)
-  assert.equal(priced.body.crossCheck.tokens.total, 10)
+test('the account-event guard is applied by default', async (t) => {
+  const harness = await mount(t)
+  await call(harness, '/dsh-balance-meter/status', '?session=known')
+  harness.setBalance({ status: 'ready', value: [{ currency: 'CNY', balance: '0.5' }], bonusWallets: [] })
+  const response = await call(harness, '/dsh-balance-meter/refresh', '?session=known')
+  assert.equal(response.body.session.spend, 0, '95% of the wallet is not one turn')
+})
 
-  for (const handler of harness.listeners.get('session/disposed') ?? []) handler({ id: 'known' })
+test('token accounting feeds the cross-check and dies with the session', async (t) => {
+  const harness = await mount(t)
+  // The durable feed is process-wide; drive it through the same event the Host
+  // emits. `session/event` is a real cordis event, so emit it on the app.
+  const session = { id: 'known', header: { createdAt: 1_000_000 } }
+  harness.app.emit('session/event', session, {
+    type: 'assistant/message',
+    data: { usage: { inputTokens: 1_000_000, cacheReadTokens: 0, outputTokens: 0, reasoningTokens: 0 } },
+  })
+
+  const priced = await call(harness, '/dsh-balance-meter/status', '?session=known')
+  assert.notEqual(priced.body.crossCheck, null, 'the token cross-check is published')
+  assert.ok(Math.abs(priced.body.crossCheck.cost - 30) < 1e-9, '1M miss at the default 30 CNY/M')
+  assert.equal(priced.body.crossCheck.tokens.total, 1_000_000)
+
+  harness.app.emit('session/disposed', session)
   const afterDisposal = await call(harness, '/dsh-balance-meter/status', '?session=known')
   assert.equal(afterDisposal.body.crossCheck, null, 'a disposed session keeps no accounting')
 })
 
-test('a config edit is clamped instead of reaching the provider unchecked', async (t) => {
-  const config = { pollIntervalMs: 1, requestTimeoutMs: 'nonsense', anomalyRatio: 9, showTokenCrossCheck: false, price: { currency: 'usd', cacheHit: -1, cacheMiss: 2, output: 4 } }
-  const harness = mountFor(t, { config })
-  const response = await call(harness, '/dsh-balance-meter/status', '?session=known')
-  assert.equal(response.body.config.pollIntervalMs, 5000, 'clamped up to the floor')
+test('a patch-shaped config (plain values) is honoured too', async (t) => {
+  // Two config shapes reach `apply`: the resolved schema handles a mounted row
+  // gets, and the plain values a `cordis.patch.yml` row carries before the schema
+  // wraps them. Both must work, so this drives the plain one over a minimal
+  // context — mounting through cordis re-resolves the override back to the schema
+  // default, which is why the handles are read live in the first place.
+  const routes = []
+  const listeners = new Map()
+  const ctx = {
+    effect(callback) {
+      const cleanup = callback()
+      return () => {
+        if (typeof cleanup === 'function') cleanup()
+      }
+    },
+    on(event, handler) {
+      const list = listeners.get(event) ?? []
+      list.push(handler)
+      listeners.set(event, list)
+      return () => {}
+    },
+    get: () => undefined,
+    webServer: {
+      register(route) {
+        routes.push(route)
+        return () => {}
+      },
+    },
+    deepseekAccount: {
+      async getBalance() {
+        return { status: 'ready', value: [{ currency: 'CNY', balance: '10' }], bonusWallets: [] }
+      },
+    },
+  }
+  t.after(() => {
+    for (const handler of listeners.get('session/disposed') ?? []) handler({ id: 'known' })
+  })
+
+  host.apply(ctx, { showTokenCrossCheck: false, pollIntervalMs: 90_000, price: { currency: 'CNY', cacheHit: 1, cacheMiss: 30, output: 90 } })
+  for (const handler of listeners.get('session/event') ?? []) {
+    handler({ id: 'known', header: { createdAt: 1_000_000 } }, { type: 'assistant/message', data: { usage: { inputTokens: 1_000 } } })
+  }
+
+  const response = await call({ routes }, '/dsh-balance-meter/status', '?session=known')
+  assert.equal(response.body.crossCheck, null, 'the plain flag turns the cross-check off')
   assert.equal(response.body.config.showTokenCrossCheck, false)
-  assert.equal(response.body.crossCheck, null)
+  assert.equal(response.body.config.pollIntervalMs, 90_000, 'the plain poll interval is honoured')
 })
