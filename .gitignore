@@ -1,0 +1,5 @@
+# Nothing generated belongs in the package: this plugin has no build step.
+node_modules/
+*.log
+.DS_Store
+Thumbs.db

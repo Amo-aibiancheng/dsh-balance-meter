@@ -1,0 +1,19 @@
+# ============================================================================
+# dsh-balance-meter —— DSH bundle patch
+# ============================================================================
+# 这是插件的"挂载声明"。DSH 启动时按 bundle 层栈叠加各插件 patch，本文件把
+# 插件行插入目标 profile 的配置树：行的 node 半（exports "."）跑在宿主进程里，
+# 负责读余额、维护观测时间线、注册 /dsh-balance-meter/* 路由；package.json 的
+# dsh.client 声明让浏览器半（exports "./client"）在 Web GUI 里加载。
+#
+# 安装（任选其一）：
+#   dsh plugin --profile <profile> add link:<本目录绝对路径>
+#   dsh plugin --profile <profile> add dsh-balance-meter@latest
+#
+# 注意：本行没有 config 段，所有可调项都走 Config 的默认值；
+# 需要覆盖时在 profile 的 cordis.patch.yml 里按行 id 追加 config（见 README）。
+# ============================================================================
+
+- insert:
+    - id: dsh-balance-meter
+      name: dsh-balance-meter

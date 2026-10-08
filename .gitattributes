@@ -1,0 +1,7 @@
+# Keep the repository's line endings canonical (LF) on every platform: this is a
+# pure-JavaScript package, and Windows' `core.autocrlf=true` would otherwise
+# commit CRLF into files that carry no build step to normalize them.
+* text=auto eol=lf
+*.png binary
+*.gif binary
+*.mp3 binary
