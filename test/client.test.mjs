@@ -288,7 +288,7 @@ test('the entry renders the two numbers it exists for', async () => {
     json: async () => ({
       ok: true,
       config: { pollIntervalMs: 45000, showTokenCrossCheck: true },
-      balance: { totalBalance: 4.56, currency: 'CNY', wallets: { CNY: { paid: 4.56, bonus: 0 } }, updatedAt: Date.now(), ageMs: 900, error: null },
+      balance: { paid: 4.56, bonus: 0, currency: 'CNY', wallets: { CNY: { paid: 4.56, bonus: 0 } }, updatedAt: Date.now(), ageMs: 900, error: null },
       session: { sessionId: 's1', createdMs: Date.now() - 60_000, baseline: { time: Date.now() - 60_000, currency: 'CNY', paid: 4.773 }, baselineSource: 'session-start', partial: false, observed: true, spend: 0.213, topUp: 0, sampleCount: 3, windowMs: 60_000, readingCount: 4 },
       crossCheck: { cost: 0.198, currency: 'CNY', tokens: { total: 12345 } },
       ledger: { readingCount: 4, sessionCount: 1 },
@@ -314,7 +314,7 @@ test('a session with no sample yet says so instead of claiming zero', async () =
     json: async () => ({
       ok: true,
       config: { pollIntervalMs: 45000, showTokenCrossCheck: true },
-      balance: { totalBalance: 4.56, currency: 'CNY', wallets: {}, updatedAt: Date.now(), ageMs: 1, error: null },
+      balance: { paid: 4.56, bonus: 0, currency: 'CNY', wallets: {}, updatedAt: Date.now(), ageMs: 1, error: null },
       session: { sessionId: 's1', createdMs: Date.now(), baseline: null, baselineSource: 'none', partial: false, observed: false, spend: 0, topUp: 0, sampleCount: 0, windowMs: 0, readingCount: 0 },
       crossCheck: null,
       ledger: { readingCount: 0, sessionCount: 1 },

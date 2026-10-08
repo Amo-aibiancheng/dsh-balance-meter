@@ -234,7 +234,7 @@ test('a Session the ledger never saw still reports a usable shape', () => {
   assert.equal(measured.baseline, null)
   assert.equal(measured.readingCount, 0)
   ledger.recordReading({ time: 1000, wallets: buildWallets([{ currency: 'CNY', balance: '5' }]) })
-  assert.equal(ledger.readingAtOrAfter(500).total, 5)
+  assert.equal(ledger.readingAtOrAfter(500).paid, 5)
   assert.equal(ledger.readingAtOrAfter(2000), null)
 })
 

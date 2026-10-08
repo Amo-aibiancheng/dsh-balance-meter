@@ -321,7 +321,7 @@ export function apply(ctx, config) {
     }
     let balanceError = null
     if (outcome === null || !outcome.ok) {
-      const stale = latest === null ? null : { time: latest.time, total: latest.total, currency: latest.currency }
+      const stale = latest === null ? null : { time: latest.time, paid: latest.paid, currency: latest.currency }
       balanceError = {
         code: outcome?.code ?? 'PENDING',
         message: outcome?.message ?? '尚未取得余额',
@@ -335,7 +335,12 @@ export function apply(ctx, config) {
         showTokenCrossCheck: active.showTokenCrossCheck,
       },
       balance: {
-        totalBalance: latest?.total ?? null,
+        // 充值余额 (the recharge wallet) is the headline figure, exactly as the
+        // shipped account card reports it. 赠金 (bonus) rides beside it and is
+        // never summed in: bonus funds are granted and expire, so adding them
+        // would misreport both numbers.
+        paid: latest?.paid ?? null,
+        bonus: latest?.bonus ?? null,
         currency: latest?.currency ?? '',
         // Copied per currency: the payload is serialized, and handing out the
         // ledger's own objects would let a later observation mutate a response

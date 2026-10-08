@@ -92,7 +92,7 @@ test('the plugin loads and applies on a real cordis app', async (t) => {
   )
   const body = JSON.parse(payload)
   assert.equal(body.ok, true)
-  assert.equal(body.balance.totalBalance, 12.34)
+  assert.equal(body.balance.paid, 12.34)
   assert.equal(body.session, null, 'no session id in the query')
 
   // Disposal must release every route (the fiber owns them).

@@ -5,13 +5,14 @@ English | [中文](README.md)
 A permanent readout in the DSH Web GUI footer (below the composer, on the same row as the
 shipped stats pills) showing two live numbers:
 
-- **Account balance** — read from the official account service (`deepseekAccount.getBalance`),
-  i.e. the actual recharge wallet.
+- **Recharge balance** — read from the official account service (`deepseekAccount.getBalance`).
+  Like the shipped account card, the **bonus wallet is never summed in** (bonus funds are granted
+  and expire rather than being spent down); it gets its own line in the detail panel.
 - **This session's spend** — what the current session has cost so far, measured as a
   **wallet delta**, not estimated locally from tokens.
 
-Click it for the breakdown (sample time, spend, observation window, top-ups seen, token
-cross-check) and to force an immediate refresh.
+Click it for the breakdown (recharge balance, bonus balance, sample time, spend, observation
+window, top-ups seen, token cross-check) and to force an immediate refresh.
 
 ```
 余额 ¥4.56 · 本次 ¥0.2130
@@ -99,6 +100,7 @@ pin the provider.
 | Out-of-order arrivals | Inserted at their correct place in the timeline; "the balance now" is always the newest observation by time, never overwritten by an older one |
 | A currency disappears or switches | No differencing across the gap: rebase |
 | A failed balance read | Recorded as unreadable, never as zero — so no cost is invented |
+| The account holds bonus funds | The headline is the recharge wallet only (matching the shipped account card) and bonus keeps its own line; the two are never added |
 | Two settlements close together | Both count, as long as the amount differs (a minimum-spacing guard was tried and **lost real charges**, so it was removed) |
 
 **Known limitation, stated in the panel rather than hidden**: the wallet belongs to the

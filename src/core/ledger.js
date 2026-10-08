@@ -119,22 +119,20 @@ export function buildWallets(wallets, bonusWallets = []) {
 }
 
 /**
- * Sum the displayable balance of every wallet (paid plus bonus).
+ * The recharge-wallet balance of the headline currency.
+ *
+ * Only the PAID wallet is reported: the shipped account card deliberately shows
+ * 充值余额 and 赠金余额 on separate lines (bonus funds are granted and expire
+ * rather than being spent down), so folding them into one number would misreport
+ * both. Bonus stays visible per currency for the detail panel.
  *
  * @param {Record<string, { paid: number, bonus: number }>} wallets - wallet map.
- * @returns {number} total balance, or `NaN` when nothing is readable.
+ * @returns {number} the paid balance, or `NaN` when nothing is readable.
  */
 export function totalBalance(wallets) {
-  let total = 0
-  let seen = false
-  for (const wallet of Object.values(wallets ?? {})) {
-    if (Number.isFinite(wallet.paid)) {
-      total += wallet.paid
-      seen = true
-    }
-    if (Number.isFinite(wallet.bonus)) total += wallet.bonus
-  }
-  return seen ? total : UNREADABLE
+  const currency = primaryCurrency(wallets)
+  const paid = wallets?.[currency]?.paid
+  return Number.isFinite(paid) ? paid : UNREADABLE
 }
 
 /**
@@ -163,14 +161,18 @@ export function primaryCurrency(wallets) {
  *
  * @param {number} time - epoch milliseconds when the provider was read.
  * @param {Record<string, { paid: number, bonus: number }>} wallets - wallet map.
- * @returns {{ time: number, wallets: Record<string, { paid: number, bonus: number }>, total: number, currency: string, seq: number }} reading.
+ * @returns {{ time: number, wallets: Record<string, { paid: number, bonus: number }>, paid: number, bonus: number, currency: string, seq: number }} reading.
  */
 export function createReading(time, wallets) {
+  const currency = primaryCurrency(wallets)
+  const wallet = wallets?.[currency]
   return {
     time: Number.isFinite(time) ? time : Date.now(),
     wallets: wallets ?? {},
-    total: totalBalance(wallets),
-    currency: primaryCurrency(wallets),
+    // The headline money, and the bonus beside it — never summed.
+    paid: Number.isFinite(wallet?.paid) ? wallet.paid : UNREADABLE,
+    bonus: Number.isFinite(wallet?.bonus) ? wallet.bonus : 0,
+    currency,
     seq: 0,
   }
 }

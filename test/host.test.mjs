@@ -183,7 +183,7 @@ test('status turns a provider read into a session measurement', async (t) => {
   assert.equal(first.status, 200)
   assert.equal(first.body.ok, true)
   assert.equal(first.body.balance.currency, 'CNY')
-  assert.equal(first.body.balance.totalBalance, 10, 'the first read is the mocked starting balance')
+  assert.equal(first.body.balance.paid, 10, 'the first read is the mocked starting balance')
   assert.equal(first.body.balance.error, null)
   assert.equal(first.body.session.spend, 0)
   assert.equal(first.body.config.pollIntervalMs, 45000)
@@ -200,7 +200,7 @@ test('status turns a provider read into a session measurement', async (t) => {
   assert.equal(refreshed.body.ok, true)
   assert.equal(refreshed.body.balance.error, null, 'the provider read succeeded')
   assert.ok(Math.abs(refreshed.body.session.spend - 0.213) < 1e-9, `the delta becomes the session spend (got ${String(refreshed.body.session.spend)})`)
-  assert.ok(Math.abs(refreshed.body.balance.totalBalance - 9.787) < 1e-9)
+  assert.ok(Math.abs(refreshed.body.balance.paid - 9.787) < 1e-9)
   assert.notEqual(refreshed.body.crossCheck, null, 'the token cross-check is published')
   assert.ok(Math.abs(refreshed.body.crossCheck.cost - 3) < 1e-9, '1M miss at 3 CNY/M')
 })
@@ -218,7 +218,7 @@ test('a signed-out account is reported, not thrown', async (t) => {
   const response = await call(harness, '/dsh-balance-meter/status', '?session=known')
   assert.equal(response.status, 200)
   assert.equal(response.body.ok, true)
-  assert.equal(response.body.balance.totalBalance, null)
+  assert.equal(response.body.balance.paid, null)
   assert.equal(response.body.balance.error.code, 'SIGNED_OUT')
   assert.equal(response.body.session.spend, 0)
 })
@@ -238,7 +238,7 @@ test('a withdrawn balance read keeps the last known numbers as stale data', asyn
   harness.setBalance({ status: 'failed' })
   const response = await call(harness, '/dsh-balance-meter/refresh', '?session=known')
   assert.equal(response.body.balance.error.code, 'BALANCE_FAILED')
-  assert.equal(response.body.balance.error.stale.total, 10, 'the panel can still show what was last known')
+  assert.equal(response.body.balance.error.stale.paid, 10, 'the panel can still show what was last known')
 })
 
 test('the account-event guard is applied by default', async (t) => {
@@ -253,6 +253,24 @@ test('the account-event guard is applied by default', async (t) => {
   })
   const response = await call(harness, '/dsh-balance-meter/refresh', '?session=known')
   assert.equal(response.body.session.spend, 0, '95% of the wallet is not one turn')
+})
+
+test('the recharge wallet headlines and the bonus is never summed into it', async (t) => {
+  // The shipped account card shows 充值余额 and 赠金余额 on separate lines, so the
+  // footer must not add them up: the delta arithmetic runs on the recharge
+  // wallet alone, and the two remain distinct in the payload.
+  const harness = mountFor(t, {
+    balance: {
+      status: 'ready',
+      value: [{ currency: 'CNY', balance: '4.56' }],
+      bonusWallets: [{ currency: 'CNY', balance: '1.00' }],
+    },
+  })
+  const response = await call(harness, '/dsh-balance-meter/status', '?session=known')
+  assert.equal(response.body.balance.paid, 4.56)
+  assert.equal(response.body.balance.bonus, 1)
+  assert.notEqual(response.body.balance.paid, 5.56, 'the headline is the recharge wallet only')
+  assert.deepEqual(response.body.balance.wallets.CNY, { paid: 4.56, bonus: 1 })
 })
 
 test('token accounting ignores unrelated events and is dropped with the session', async (t) => {
