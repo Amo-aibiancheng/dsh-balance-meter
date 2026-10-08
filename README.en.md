@@ -18,9 +18,9 @@ window, top-ups seen, token cross-check) and to force an immediate refresh.
 余额 ¥4.56 · 本次 ¥0.2130
 ```
 
-![The dock row under the composer: next to the shipped stats pills, 余额 ¥2.56 本次 ¥1.40](docs/pill.png)
+![The dock row under the composer: next to the shipped stats pills, this plugin's 余额 / 本次 readout](docs/pill.png)
 
-Clicking opens the breakdown panel (the same styling as the popover the shipped stats pills open):
+Clicking opens the breakdown panel (the same styling as the popover the shipped stats pills open; the figures are cropped out of this screenshot):
 
 ![The detail panel: recharge balance, sample time, data age, session spend, baseline, observation window, settlements, token cross-check, token total](docs/panel.png)
 
