@@ -43,7 +43,7 @@ headline number.
 # local directory (development: rebuild-free, refresh the page after an edit)
 dsh plugin --profile <profile> add link:/absolute/path/to/dsh-balance-meter
 
-# npm (once published)
+# npm (not published yet — see "Publishing" below)
 dsh plugin --profile <profile> add dsh-balance-meter@latest
 ```
 
@@ -58,6 +58,22 @@ row in the profile's `cordis.patch.yml`:
     - id: dsh-balance-meter
       name: dsh-balance-meter
 ```
+
+### Build from source
+
+The package commits its build output (`lib/`), so a `link:` install needs no build step — only
+editing the code does:
+
+```sh
+git clone https://github.com/Amo-aibiancheng/dsh-balance-meter.git
+cd dsh-balance-meter
+pnpm install
+pnpm run build          # tsc emits lib/types, tsdown emits lib/index.js and lib/client.js
+dsh plugin --profile <profile> add link:$PWD
+```
+
+Keep `pnpm run watch` running while editing the browser half and just refresh the page; a change
+to the host half needs a dsh restart.
 
 ## Configuration
 
@@ -149,7 +165,7 @@ test/format.test.mjs    money formatting cases
 
 ```sh
 pnpm install
-pnpm run check      # typecheck → build → test (43 cases)
+pnpm run check      # typecheck → build → test (49 cases)
 pnpm run build      # build only
 pnpm run typecheck  # types only, against the real SDK
 pnpm run watch      # incremental build while editing the browser half

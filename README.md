@@ -38,7 +38,7 @@ DeepSeek 只对外提供一个关于钱的准确数字：账户余额。它没�
 # 本地目录（开发调试：改完跑 pnpm run build 再刷新页面，link 安装无需重装）
 dsh plugin --profile <profile> add link:/绝对路径/dsh-balance-meter
 
-# npm（发布后）
+# npm（尚未发布，见下方「发布」）
 dsh plugin --profile <profile> add dsh-balance-meter@latest
 ```
 
@@ -53,6 +53,20 @@ dsh plugin --profile <profile> add dsh-balance-meter@latest
     - id: dsh-balance-meter
       name: dsh-balance-meter
 ```
+
+### 从源码构建
+
+本包把构建产物（`lib/`）一并提交，所以 `link:` 安装不需要构建步骤；只有改代码时才需要：
+
+```sh
+git clone https://github.com/Amo-aibiancheng/dsh-balance-meter.git
+cd dsh-balance-meter
+pnpm install
+pnpm run build          # tsc 出 lib/types，tsdown 出 lib/index.js 与 lib/client.js
+dsh plugin --profile <profile> add link:$PWD
+```
+
+改客户端半时开着 `pnpm run watch`，改完刷新页面即可；改宿主半需要重启 dsh。
 
 ## 配置
 
@@ -136,7 +150,7 @@ test/format.test.mjs    金额格式化用例
 
 ```sh
 pnpm install
-pnpm run check      # typecheck → build → test（43 条用例）
+pnpm run check      # typecheck → build → test（49 条用例）
 pnpm run build      # 只构建
 pnpm run typecheck  # 只类型检查（对着真实 SDK 类型）
 pnpm run watch      # 改客户端半时增量构建
